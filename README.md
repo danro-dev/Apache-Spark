@@ -1,5 +1,7 @@
 # Apache Spark Study Repository
 
+![Apache Spark](img/Apache_spark.png)
+
 Este repositorio está diseñado para aprender y practicar Apache Spark utilizando Python (PySpark).
 
 ## Estructura del Proyecto
