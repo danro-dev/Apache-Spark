@@ -1,0 +1,80 @@
+# Versión 3.8 del formato Docker Compose
+version: '3.8'
+
+# Definición de los servicios (contenedores)
+services:
+  # 1. SERVICIO SPARK MASTER (El coordinador del cluster)
+  spark-master:
+    # Usamos la imagen que mencionaste, asegurando la consistencia
+    image: apache/spark:4.1.0-preview4-scala2.13-java21-python3-r-ubuntu
+    container_name: spark-master
+    # Definimos las variables de entorno necesarias para la configuración de la red
+    environment:
+      # Puerto y Hostname del Master
+      - SPARK_MASTER_HOST=spark-master
+      - SPARK_MASTER_PORT=7077
+      # Configuramos la URL para que los Workers se registren
+      - SPARK_MASTER_WEBUI_PORT=8080
+      - SPARK_CONF_DIR=/opt/spark/conf
+    # Mapeo de puertos para acceder desde el navegador y clientes
+    ports:
+      # UI de Spark (Web) - Acceso: http://localhost:8080
+      - "8080:8080"
+      # Puerto de comunicación para los Workers
+      - "7077:7077"
+    # El comando para iniciar el Master al levantar el contenedor
+    command: /opt/spark/bin/spark-class org.apache.spark.deploy.master.Master
+    # Asignamos la red
+    networks:
+      - spark-net
+
+  # 2. SERVICIO SPARK WORKER (Los nodos de trabajo)
+  spark-worker-1:
+    image: apache/spark:4.1.0-preview4-scala2.13-java21-python3-r-ubuntu
+    container_name: spark-worker-1
+    # Asegura que el Worker espere a que el Master esté listo
+    depends_on:
+      - spark-master
+    environment:
+      # Enlace al Master usando el nombre de servicio
+      - SPARK_MASTER=spark://spark-master:7077
+      # Recursos asignados a este Worker (Ajustar según la máquina)
+      - SPARK_WORKER_CORES=2
+      - SPARK_WORKER_MEMORY=2g
+      - SPARK_WORKER_WEBUI_PORT=8081
+    ports:
+      # UI del Worker 1 - Acceso: http://localhost:8081
+      - "8081:8081"
+    # El comando para iniciar el Worker
+    command: /opt/spark/bin/spark-class org.apache.spark.deploy.worker.Worker spark://spark-master:7077
+    networks:
+      - spark-net
+
+  # 3. SERVICIO JUPYTER LAB (Para desarrollo interactivo con PySpark)
+  jupyterlab:
+    # Usamos una imagen que ya incluye Jupyter y las librerías científicas.
+    # Esta es una imagen de Spark diferente, pero compatible.
+    image: jupyter/pyspark-notebook:spark-3.5.0
+    container_name: jupyter-notebook
+    depends_on:
+      - spark-master
+    ports:
+      # Acceso a Jupyter Lab - Acceso: http://localhost:8888
+      - "8888:8888"
+    environment:
+      # Token de acceso para Jupyter Lab
+      - JUPYTER_TOKEN=password
+      # Configuración de Spark dentro del Notebook para conectarse al Master
+      - SPARK_MASTER_URL=spark://spark-master:7077
+      # Configuración para que el notebook use el mismo entorno de red
+      - PYTHONPATH=/opt/conda/envs/python/lib/python3.11/site-packages
+    # Montamos un volumen para persistir tus notebooks
+    volumes:
+      - ./notebooks:/home/jovyan/work
+    networks:
+      - spark-net
+
+# Definición de la red que usaremos
+networks:
+  spark-net:
+    driver: bridge
